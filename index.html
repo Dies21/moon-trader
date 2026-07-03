@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Moon Trader</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+:root {
+  --bg:     #080b14;
+  --bg2:    #0d1220;
+  --bg3:    #111827;
+  --accent: #4f8fff;
+  --acc2:   #7c3aed;
+  --green:  #10d98a;
+  --red:    #ff4560;
+  --yellow: #fbbf24;
+  --text:   #e2e8f0;
+  --muted:  #64748b;
+  --border: rgba(79,143,255,0.15);
+  --glow:   0 0 20px rgba(79,143,255,0.3);
+  --glow-g: 0 0 20px rgba(16,217,138,0.3);
+}
+
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+
+body {
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Space Grotesk',sans-serif;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* Stars */
+body::before {
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:
+    radial-gradient(1px 1px at 20% 30%,rgba(255,255,255,.4) 0%,transparent 100%),
+    radial-gradient(1px 1px at 80% 10%,rgba(255,255,255,.3) 0%,transparent 100%),
+    radial-gradient(1px 1px at 50% 60%,rgba(255,255,255,.2) 0%,transparent 100%),
+    radial-gradient(1px 1px at 10% 80%,rgba(255,255,255,.3) 0%,transparent 100%),
+    radial-gradient(1px 1px at 90% 70%,rgba(255,255,255,.2) 0%,transparent 100%),
+    radial-gradient(1px 1px at 35% 15%,rgba(255,255,255,.4) 0%,transparent 100%),
+    radial-gradient(2px 2px at 75% 40%,rgba(79,143,255,.4) 0%,transparent 100%),
+    radial-gradient(2px 2px at 25% 55%,rgba(124,58,237,.3) 0%,transparent 100%);
+  pointer-events:none;
+  z-index:0;
+}
+
+.app{position:relative;z-index:1;padding-bottom:80px}
+
+/* Header */
+.header {
+  background:linear-gradient(180deg,rgba(13,18,32,.98) 0%,rgba(8,11,20,.95) 100%);
+  border-bottom:1px solid var(--border);
+  padding:14px 20px 12px;
+  position:sticky;
+  top:0;
+  z-index:100;
+  backdrop-filter:blur(20px);
+}
+
+.header-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+
+.logo{display:flex;align-items:center;gap:10px}
+
+.logo-icon {
+  width:34px;height:34px;
+  background:linear-gradient(135deg,var(--accent),var(--acc2));
+  border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:17px;
+  box-shadow:var(--glow);
+}
+
+.logo-text {
+  font-family:'Space Mono',monospace;
+  font-size:15px;font-weight:700;letter-spacing:.05em;
+  background:linear-gradient(90deg,var(--accent),var(--acc2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+
+.status-dot {
+  width:8px;height:8px;
+  background:var(--green);
+  border-radius:50%;
+  box-shadow:0 0 8px var(--green);
+  animation:pulse 2s infinite;
+}
+
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.8)}}
+
+.header-sub{font-size:10px;color:var(--muted);font-family:'Space Mono',monospace}
+
+/* Pages */
+.page{display:none;padding:14px}
+.page.active{display:block}
+
+/* Cards */
+.card {
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:14px;
+  margin-bottom:10px;
+  position:relative;
+  overflow:hidden;
+}
+
+.card::before {
+  content:'';
+  position:absolute;
+  top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  opacity:.4;
+}
+
+.card-title {
+  font-size:10px;font-weight:700;letter-spacing:.1em;
+  color:var(--muted);text-transform:uppercase;
+  margin-bottom:12px;font-family:'Space Mono',monospace;
+}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+
+.stat-box {
+  background:var(--bg3);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:12px;text-align:center;
+}
+
+.stat-val {
+  font-family:'Space Mono',monospace;
+  font-size:20px;font-weight:700;margin-bottom:3px;
+}
+
+.stat-val.green{color:var(--green);text-shadow:0 0 10px rgba(16,217,138,.4)}
+.stat-val.red  {color:var(--red);  text-shadow:0 0 10px rgba(255,69,96,.4)}
+.stat-val.blue {color:var(--accent);text-shadow:var(--glow)}
+.stat-val.yell {color:var(--yellow)}
+
+.stat-lbl{font-size:10px;color:var(--muted)}
+
+/* Win rate bar */
+.wr-bar{background:var(--bg3);border-radius:100px;height:6px;margin:6px 0;overflow:hidden}
+.wr-fill {
+  height:100%;border-radius:100px;
+  background:linear-gradient(90deg,var(--accent),var(--green));
+  transition:width 1.2s ease;
+  box-shadow:0 0 8px rgba(16,217,138,.4);
+}
+
+/* Readiness */
+.ready-row {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 0;border-bottom:1px solid var(--border);
+}
+
+.ready-row:last-child{border-bottom:none}
+
+/* Countdown */
+.countdown{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);font-family:'Space Mono',monospace}
+.cd-dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 1.5s infinite;box-shadow:0 0 6px var(--green)}
+
+/* Signal cards */
+.sig-card {
+  background:var(--bg2);
+  border:1px solid rgba(16,217,138,.25);
+  border-radius:16px;padding:14px;
+  margin-bottom:10px;
+  position:relative;overflow:hidden;
+}
+
+.sig-card::before {
+  content:'';position:absolute;
+  top:0;left:0;right:0;bottom:0;
+  background:linear-gradient(135deg,rgba(16,217,138,.04) 0%,transparent 60%);
+  pointer-events:none;
+}
+
+.sig-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.sig-coin{font-family:'Space Mono',monospace;font-size:17px;font-weight:700}
+.sig-badge {
+  padding:4px 10px;border-radius:100px;
+  font-size:10px;font-weight:700;font-family:'Space Mono',monospace;letter-spacing:.05em;
+  background:rgba(16,217,138,.12);color:var(--green);border:1px solid rgba(16,217,138,.3);
+}
+
+.sig-move {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 12px;background:var(--bg3);border-radius:10px;margin-bottom:8px;
+}
+
+.sig-levels{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px}
+
+.lvl-box{background:var(--bg3);border-radius:10px;padding:8px;text-align:center}
+.lvl-lbl{font-size:9px;color:var(--muted);margin-bottom:3px;font-family:'Space Mono',monospace}
+.lvl-val{font-family:'Space Mono',monospace;font-size:12px;font-weight:700}
+.lvl-val.e{color:var(--accent)}.lvl-val.s{color:var(--red)}.lvl-val.t{color:var(--green)}
+
+/* Coin chips */
+.coin-scroll{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:4px;margin-bottom:12px}
+.coin-scroll::-webkit-scrollbar{display:none}
+.chip {
+  flex-shrink:0;padding:5px 12px;border-radius:100px;
+  border:1px solid var(--border);background:var(--bg3);
+  color:var(--muted);font-size:11px;font-weight:600;cursor:pointer;
+  transition:all .2s;font-family:'Space Mono',monospace;
+}
+.chip.active{background:rgba(79,143,255,.15);border-color:var(--accent);color:var(--accent);box-shadow:var(--glow)}
+
+/* Period grid */
+.period-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:12px}
+.p-btn {
+  padding:7px 4px;border-radius:8px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--muted);font-size:10px;font-weight:600;
+  cursor:pointer;transition:all .2s;font-family:'Space Mono',monospace;text-align:center;
+}
+.p-btn.active{background:rgba(79,143,255,.15);border-color:var(--accent);color:var(--accent)}
+
+/* Chart */
+.chart-wrap{position:relative;height:160px;margin-bottom:10px}
+
+/* Forecast */
+.fc-box{border-radius:12px;padding:12px;margin-bottom:10px}
+.fc-box.up{background:rgba(16,217,138,.07);border:1px solid rgba(16,217,138,.2)}
+.fc-box.down{background:rgba(255,69,96,.07);border:1px solid rgba(255,69,96,.2)}
+.fc-box.neutral{background:rgba(79,143,255,.07);border:1px solid rgba(79,143,255,.2)}
+.fc-dir{font-size:13px;font-weight:700;margin-bottom:8px}
+.fc-row{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
+.fc-row span:first-child{color:var(--muted)}
+.fc-row span:last-child{font-family:'Space Mono',monospace;font-weight:600}
+
+/* Indicators */
+.ind-wrap{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.ind{padding:4px 10px;border-radius:100px;font-size:10px;font-family:'Space Mono',monospace;border:1px solid}
+.ind.bull{background:rgba(16,217,138,.1);border-color:rgba(16,217,138,.3);color:var(--green)}
+.ind.bear{background:rgba(255,69,96,.1);border-color:rgba(255,69,96,.3);color:var(--red)}
+.ind.neut{background:rgba(79,143,255,.1);border-color:rgba(79,143,255,.3);color:var(--accent)}
+
+/* Legend */
+.leg-section{margin-bottom:14px}
+.leg-section-title {
+  font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--accent);font-family:'Space Mono',monospace;
+  margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border);
+}
+.leg-item {
+  padding:10px;background:var(--bg3);
+  border-radius:10px;margin-bottom:5px;border:1px solid var(--border);
+}
+.leg-term{font-size:12px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.leg-desc{font-size:11px;color:var(--muted);line-height:1.5}
+
+/* Bottom nav */
+.bottom-nav {
+  position:fixed;bottom:0;left:0;right:0;
+  background:rgba(13,18,32,.97);
+  border-top:1px solid var(--border);
+  display:flex;padding:8px 0 max(8px,env(safe-area-inset-bottom));
+  backdrop-filter:blur(20px);z-index:100;
+}
+.b-btn {
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+  background:none;border:none;color:var(--muted);
+  font-family:'Space Grotesk',sans-serif;font-size:9px;font-weight:500;
+  cursor:pointer;padding:4px;transition:all .2s;
+}
+.b-btn .ico{font-size:19px}
+.b-btn.active{color:var(--accent)}
+
+/* Empty */
+.empty{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty .ico{font-size:44px;margin-bottom:12px}
+.empty .ttl{font-size:15px;font-weight:600;margin-bottom:6px;color:var(--text)}
+.empty .sub{font-size:12px;line-height:1.5}
+
+/* Animations */
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.fu{animation:fadeUp .35s ease forwards}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-row">
+    <div class="logo">
+      <div class="logo-icon">🌙</div>
+      <span class="logo-text">MOON TRADER</span>
+    </div>
+    <div class="status-dot"></div>
+  </div>
+  <div class="header-sub" id="hdr-sub">⟳ Сканування кожні 60 хв · Bybit + BlackBit</div>
+</div>
+
+<!-- PAGE: DASHBOARD -->
+<div class="page active" id="page-dashboard">
+<div class="fu">
+
+  <div class="card">
+    <div class="card-title">📊 Статистика місії</div>
+    <div class="stats-grid">
+      <div class="stat-box"><div class="stat-val blue" id="s-total">—</div><div class="stat-lbl">Сигналів</div></div>
+      <div class="stat-box"><div class="stat-val yell" id="s-wr">—</div><div class="stat-lbl">Win Rate</div></div>
+      <div class="stat-box"><div class="stat-val green" id="s-wins">—</div><div class="stat-lbl">Прибуток</div></div>
+      <div class="stat-box"><div class="stat-val red" id="s-loss">—</div><div class="stat-lbl">Збиток</div></div>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:5px;font-family:'Space Mono',monospace">WIN RATE</div>
+    <div class="wr-bar"><div class="wr-fill" id="wr-fill" style="width:0%"></div></div>
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted);font-family:'Space Mono',monospace;margin-top:3px">
+      <span>0%</span><span>🎯 55%</span><span>100%</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🚀 Готовність до торгівлі</div>
+    <div id="ready-list"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⏱ Наступне сканування</div>
+    <div class="countdown"><div class="cd-dot"></div><span id="cd-text">Система активна</span></div>
+  </div>
+
+</div>
+</div>
+
+<!-- PAGE: SIGNALS -->
+<div class="page" id="page-signals">
+  <div class="fu" id="sig-list">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:40px">
+      <div class="spinner"></div>
+      <span style="font-size:12px;color:var(--muted)">Завантажуємо сигнали...</span>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE: ANALYSIS -->
+<div class="page" id="page-analysis">
+<div class="fu">
+  <div class="coin-scroll" id="coin-sel"></div>
+  <div class="period-grid" id="per-sel"></div>
+  <div class="card">
+    <div class="card-title" id="chart-lbl">📈 Графік</div>
+    <div class="chart-wrap"><canvas id="chart"></canvas></div>
+  </div>
+  <div id="fc-wrap"></div>
+  <div class="card" id="ind-card" style="display:none">
+    <div class="card-title">🔭 Індикатори</div>
+    <div class="ind-wrap" id="ind-list"></div>
+  </div>
+</div>
+</div>
+
+<!-- PAGE: LEGEND -->
+<div class="page" id="page-legend">
+  <div class="fu" id="leg-wrap"></div>
+</div>
+
+</div><!-- /app -->
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <button class="b-btn active" onclick="nav('dashboard',this)"><span class="ico">🏠</span>Головна</button>
+  <button class="b-btn" onclick="nav('signals',this)"><span class="ico">📡</span>Сигнали</button>
+  <button class="b-btn" onclick="nav('analysis',this)"><span class="ico">📊</span>Аналіз</button>
+  <button class="b-btn" onclick="nav('legend',this)"><span class="ico">📚</span>Легенда</button>
+</div>
+
+<script>
+// Telegram init
+const tg = window.Telegram?.WebApp;
+if(tg){tg.ready();tg.expand();tg.setHeaderColor('#080b14');tg.setBackgroundColor('#080b14');}
+
+// Navigation
+function nav(page, btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.b-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(page==='signals')  loadSignals();
+  if(page==='analysis') initAnalysis();
+  if(page==='legend')   renderLegend();
+}
+
+// Mock data — буде замінено реальними даними з бота
+const STATS = {total:23,wins:14,losses:7,pending:2,wr:66.7,pnl:2.1};
+const COINS = ['LINK','DOT','AVAX','ATOM','UNI','LTC','BCH','ETC','NEAR','FIL','ECR'];
+const PERIODS = ['1г','3г','6г','12г','24г','3д','7д','30д','90д'];
+const SIGNALS = [
+  {coin:'AVAX',move:2.4,band:0.8,entry:25.42,sl:24.90,tp:26.03,sl_pct:2.1,tp_pct:2.4,rr:2.6,ago:'2 год тому',status:'active'},
+  {coin:'LINK',move:1.8,band:1.1,entry:13.15,sl:12.88,tp:13.51,sl_pct:2.1,tp_pct:2.7,rr:2.5,ago:'5 год тому',status:'win'},
+  {coin:'ECR', move:3.1,band:0.9,entry:65.97,sl:64.58,tp:68.02,sl_pct:2.1,tp_pct:3.1,rr:2.9,ago:'8 год тому',status:'win'},
+  {coin:'DOT', move:1.5,band:1.4,entry:6.42, sl:6.28, tp:6.71, sl_pct:2.2,tp_pct:4.5,rr:2.1,ago:'1 день тому',status:'loss'},
+];
+
+// Dashboard
+function loadDashboard(){
+  const s=STATS;
+  document.getElementById('s-total').textContent=s.total;
+  document.getElementById('s-wr').textContent=s.wr.toFixed(1)+'%';
+  document.getElementById('s-wins').textContent=s.wins;
+  document.getElementById('s-loss').textContent=s.losses;
+  setTimeout(()=>document.getElementById('wr-fill').style.width=s.wr+'%',300);
+
+  const checks=[
+    {lbl:'50+ сигналів',ok:s.total>=50,val:s.total+'/50'},
+    {lbl:'Win Rate 55%+',ok:s.wr>=55,val:s.wr.toFixed(1)+'%'},
+    {lbl:'Позитивний PnL',ok:s.pnl>0,val:'+'+s.pnl.toFixed(2)+'%'},
+  ];
+  const ready=checks.every(c=>c.ok);
+  document.getElementById('ready-list').innerHTML=checks.map(c=>`
+    <div class="ready-row">
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+        <span>${c.ok?'✅':'🔄'}</span>
+        <span style="color:${c.ok?'var(--text)':'var(--muted)'}">${c.lbl}</span>
+      </div>
+      <span style="font-family:'Space Mono',monospace;font-size:11px;color:${c.ok?'var(--green)':'var(--muted)'}">${c.val}</span>
+    </div>
+  `).join('')+`<div style="text-align:center;margin-top:10px;font-size:12px;font-weight:600;color:${ready?'var(--green)':'var(--muted)'}">
+    ${ready?'🚀 ГОТОВО ДО СТАРТУ!':'⏳ Продовжуємо навчання...'}
+  </div>`;
+
+  let mins=60;
+  const cd=document.getElementById('cd-text');
+  const tick=()=>{mins=Math.max(0,mins-1);cd.textContent=mins>0?`До сканування: ${mins} хв`:'🔄 Сканування зараз...';if(!mins)mins=60;};
+  setInterval(tick,60000);tick();
+}
+
+// Signals
+function loadSignals(){
+  const el=document.getElementById('sig-list');
+  if(!SIGNALS.length){
+    el.innerHTML=`<div class="empty"><div class="ico">🛸</div><div class="ttl">Сигналів поки немає</div><div class="sub">Система веде сканування.<br>Сигнали з'являться тут автоматично.</div></div>`;
+    return;
+  }
+  el.innerHTML=SIGNALS.map(s=>{
+    const sc=s.status==='win'?'var(--green)':s.status==='loss'?'var(--red)':'var(--accent)';
+    const sl=s.status==='win'?'✅ ПРИБУТОК':s.status==='loss'?'❌ ЗБИТОК':'🔄 АКТИВНИЙ';
+    return `<div class="sig-card fu">
+      <div class="sig-head">
+        <span class="sig-coin">${s.coin}<span style="font-size:11px;color:var(--muted)">/USDT</span></span>
+        <span class="sig-badge">BUY</span>
+      </div>
+      <div class="sig-move">
+        <span style="font-size:11px;color:var(--muted)">Прогноз руху</span>
+        <span style="font-family:'Space Mono',monospace;font-size:15px;font-weight:700;color:var(--green)">+${s.move}% <span style="font-size:11px;color:var(--muted)">±${s.band}%</span></span>
+      </div>
+      <div class="sig-levels">
+        <div class="lvl-box"><div class="lvl-lbl">ВХІД</div><div class="lvl-val e">$${s.entry}</div></div>
+        <div class="lvl-box"><div class="lvl-lbl">СТОП</div><div class="lvl-val s">$${s.sl}</div></div>
+        <div class="lvl-box"><div class="lvl-lbl">ТЕЙК</div><div class="lvl-val t">$${s.tp}</div></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:10px;font-family:'Space Mono',monospace;color:${sc}">${sl}</span>
+        <span style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace">RR 1:${s.rr} · ${s.ago}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Analysis
+let selCoin='AVAX',selPer='24г',chart=null;
+
+function initAnalysis(){
+  document.getElementById('coin-sel').innerHTML=COINS.map(c=>`
+    <div class="chip ${c===selCoin?'active':''}" onclick="pickCoin('${c}',this)">${c}</div>`).join('');
+  document.getElementById('per-sel').innerHTML=PERIODS.map(p=>`
+    <button class="p-btn ${p===selPer?'active':''}" onclick="pickPer('${p}',this)">${p}</button>`).join('');
+  drawAnalysis();
+}
+
+function pickCoin(c,el){selCoin=c;document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));el.classList.add('active');drawAnalysis();}
+function pickPer(p,el){selPer=p;document.querySelectorAll('.p-btn').forEach(x=>x.classList.remove('active'));el.classList.add('active');drawAnalysis();}
+
+function drawAnalysis(){
+  document.getElementById('chart-lbl').textContent=`📈 ${selCoin}/USDT · ${selPer}`;
+  const n={1:1,3:3,6:6,12:12,24:24,'3':18,'7':42,'30':180,'90':540}[selPer.replace('г','').replace('д','')] || 24;
+  const pts=[];let p=20+Math.random()*80;
+  for(let i=0;i<Math.min(n,60);i++){p+=(Math.random()-.47)*p*.015;pts.push(+p.toFixed(4));}
+  const chg=(pts[pts.length-1]-pts[0])/pts[0]*100;
+  const up=chg>=0;
+
+  if(chart)chart.destroy();
+  const ctx=document.getElementById('chart').getContext('2d');
+  const gr=ctx.createLinearGradient(0,0,0,160);
+  gr.addColorStop(0,up?'rgba(16,217,138,.25)':'rgba(255,69,96,.25)');
+  gr.addColorStop(1,'rgba(8,11,20,0)');
+  chart=new Chart(ctx,{
+    type:'line',
+    data:{labels:pts.map(()=>''),datasets:[{data:pts,borderColor:up?'#10d98a':'#ff4560',backgroundColor:gr,borderWidth:2,fill:true,tension:.4,pointRadius:0}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{enabled:false}},
+      scales:{x:{display:false},y:{display:true,grid:{color:'rgba(79,143,255,.07)'},ticks:{color:'#64748b',font:{size:9,family:'Space Mono'},maxTicksLimit:4},border:{display:false}}},
+      animation:{duration:500}
+    }
+  });
+
+  const rsi=30+Math.random()*50,pu=.3+Math.random()*.5;
+  const mv=(1.5+Math.random()*3).toFixed(1),bd=(.5+Math.random()*1.5).toFixed(1);
+  let fc,fcl,fclr,fmv;
+  if(pu>=.6){fc='up';fcl='🟢 Очікується РІСТ';fclr='var(--green)';fmv='+'+mv+'%';}
+  else if(pu<=.4){fc='down';fcl='🔴 Очікується ПАДІННЯ';fclr='var(--red)';fmv='-'+mv+'%';}
+  else{fc='neutral';fcl='⚪ Ринок невизначений';fclr='var(--accent)';fmv='±'+mv+'%';}
+
+  document.getElementById('fc-wrap').innerHTML=`
+    <div class="fc-box ${fc}">
+      <div class="fc-dir" style="color:${fclr}">${fcl}</div>
+      <div class="fc-row"><span>Прогноз руху</span><span style="color:${fclr}">${fmv}</span></div>
+      <div class="fc-row"><span>Діапазон впевненості</span><span>±${bd}% ${parseFloat(bd)<1.5?'✅':'⚠️'}</span></div>
+      <div class="fc-row"><span>Зміна за період</span><span style="color:${up?'var(--green)':'var(--red)'}">${up?'+':''}${chg.toFixed(2)}%</span></div>
+    </div>`;
+
+  const inds=[
+    {lbl:`RSI ${rsi.toFixed(0)}`,t:rsi<35?'bull':rsi>65?'bear':'neut'},
+    {lbl:`MACD ${Math.random()>.5?'↑':'↓'}`,t:Math.random()>.5?'bull':'bear'},
+    {lbl:`EMA ${Math.random()>.5?'бичачий':'ведмежий'}`,t:Math.random()>.5?'bull':'bear'},
+    {lbl:`BB ${Math.random()>.5?'верх':'низ'}`,t:Math.random()>.5?'bear':'bull'},
+    {lbl:`Vol ${Math.random()>.5?'🔥 сплеск':'норм'}`,t:Math.random()>.5?'bull':'neut'},
+  ];
+  document.getElementById('ind-card').style.display='block';
+  document.getElementById('ind-list').innerHTML=inds.map(i=>`<span class="ind ${i.t}">${i.lbl}</span>`).join('');
+}
+
+// Legend
+const LEGEND=[
+  {s:'🛸 Типи торгівлі',items:[
+    {i:'💱',t:'Спот торгівля',d:'Купуєш монету за реальні гроші — вона стає твоєю. Найбезпечніший тип. Не можеш втратити більше ніж вклав.'},
+    {i:'📈',t:'Лонг (Long)',d:'Ставка на ріст ціни. Купуєш зараз — продаєш дорожче. Саме це робить Moon Trader.'},
+    {i:'📉',t:'Шорт (Short)',d:'Ставка на падіння. Позичаєш монету, продаєш дорого, купуєш дешевше. Тільки на ф\'ючерсах.'},
+    {i:'⚡',t:'Плече (Leverage)',d:'Позичені кошти від біржі. x10 з $100 = сила $1000. Прибуток і збиток x10. Небезпечно.'},
+  ]},
+  {s:'📋 Типи ордерів',items:[
+    {i:'⚡',t:'Ринковий ордер',d:'Купуєш одразу за поточною ціною. Швидко але ціна може бути гіршою.'},
+    {i:'🎯',t:'Лімітний ордер',d:'Встановлюєш свою ціну. Виконується коли ринок досягне її. Нижча комісія. Рекомендуємо.'},
+    {i:'🛑',t:'Стоп-лосс (SL)',d:'Автоматичний продаж якщо ціна впала. Захищає від великих збитків.'},
+    {i:'🏆',t:'Тейк-профіт (TP)',d:'Автоматичний продаж на цільовому рівні прибутку. Фіксує прибуток без емоцій.'},
+  ]},
+  {s:'🔭 Аналіз ринку',items:[
+    {i:'🐂',t:'Бичачий ринок',d:'Ціни ростуть. Бик б\'є вгору рогами. Сприятливий час для купівлі.'},
+    {i:'🐻',t:'Ведмежий ринок',d:'Ціни падають. Ведмідь б\'є вниз лапою. Час обережності.'},
+    {i:'📊',t:'Технічний аналіз',d:'Аналіз графіків і математичних індикаторів для прогнозу ціни.'},
+    {i:'💧',t:'Ліквідність',d:'Наскільки легко купити або продати без впливу на ціну. Потрібно $1M+ добового об\'єму.'},
+  ]},
+  {s:'📊 Індикатори',items:[
+    {i:'📡',t:'RSI',d:'Перекупленість/перепроданість (0-100). Вище 70 = можливе падіння. Нижче 30 = можливий відскік.'},
+    {i:'〰️',t:'EMA',d:'Середня ціна з акцентом на останні дані. EMA9 > EMA21 = бичачий тренд.'},
+    {i:'🌊',t:'MACD',d:'Сила і напрямок тренду. Позитивна гістограма = бичачий імпульс.'},
+    {i:'📏',t:'Bollinger Bands',d:'Три лінії навколо ціни. Біля нижньої = перепроданий. Біля верхньої = перекуплений.'},
+    {i:'📦',t:'ATR',d:'Середній діапазон руху свічки. Показує волатильність. Бот використовує для SL і TP.'},
+  ]},
+  {s:'🚀 Метрики Moon Trader',items:[
+    {i:'🎯',t:'Win Rate',d:'Відсоток прибуткових сигналів. 55%+ = система має перевагу над ринком.'},
+    {i:'⚖️',t:'RR (Ризик/Прибуток)',d:'RR 1:2.5 = ризикуєш $1 щоб заробити $2.5. Мінімум 1:1.5 для торгівлі.'},
+    {i:'💫',t:'Прогноз руху',d:'Що модель очікує від монети за 24г. +2.4% = прогноз росту на 2.4%.'},
+    {i:'🔬',t:'Діапазон ±%',d:'Похибка прогнозу. ±0.8% = впевнено. ±3%+ = невпевнено, ризик вищий.'},
+    {i:'📈',t:'PnL',d:'Profit and Loss — прибуток і збиток по угоді у відсотках.'},
+  ]},
+];
+
+function renderLegend(){
+  document.getElementById('leg-wrap').innerHTML=LEGEND.map(s=>`
+    <div class="leg-section">
+      <div class="leg-section-title">${s.s}</div>
+      ${s.items.map(i=>`
+        <div class="leg-item">
+          <div class="leg-term">${i.i} ${i.t}</div>
+          <div class="leg-desc">${i.d}</div>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+// Init
+loadDashboard();
+</script>
+</body>
+</html>
