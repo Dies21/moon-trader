@@ -396,19 +396,41 @@ function nav(page, btn){
   if(page==='legend')   renderLegend();
 }
 
-// Mock data — буде замінено реальними даними з бота
-const STATS = {total:23,wins:14,losses:7,pending:2,wr:66.7,pnl:2.1};
-const COINS = ['LINK','DOT','AVAX','ATOM','UNI','LTC','BCH','ETC','NEAR','FIL','ECR'];
+// API — реальні дані з бота
+// API_URL передається через Telegram WebApp initData або беремо з параметрів
+const API_URL = new URLSearchParams(window.location.search).get('api') || 'http://localhost:8000';
+const COINS   = ['LINK','DOT','AVAX','ATOM','UNI','LTC','BCH','ETC','NEAR','FIL','ECR'];
 const PERIODS = ['1г','3г','6г','12г','24г','3д','7д','30д','90д'];
-const SIGNALS = [
-  {coin:'AVAX',move:2.4,band:0.8,entry:25.42,sl:24.90,tp:26.03,sl_pct:2.1,tp_pct:2.4,rr:2.6,ago:'2 год тому',status:'active'},
-  {coin:'LINK',move:1.8,band:1.1,entry:13.15,sl:12.88,tp:13.51,sl_pct:2.1,tp_pct:2.7,rr:2.5,ago:'5 год тому',status:'win'},
-  {coin:'ECR', move:3.1,band:0.9,entry:65.97,sl:64.58,tp:68.02,sl_pct:2.1,tp_pct:3.1,rr:2.9,ago:'8 год тому',status:'win'},
-  {coin:'DOT', move:1.5,band:1.4,entry:6.42, sl:6.28, tp:6.71, sl_pct:2.2,tp_pct:4.5,rr:2.1,ago:'1 день тому',status:'loss'},
-];
+
+// Глобальні дані
+let STATS   = {total:0,wins:0,losses:0,pending:0,wr:0,pnl:0};
+let SIGNALS = [];
+
+async function fetchStats(){
+  try{
+    const r = await fetch(`${API_URL}/stats`);
+    if(r.ok){ const d=await r.json(); STATS={total:d.total,wins:d.wins,losses:d.losses,pending:d.pending,wr:d.winrate,pnl:d.avg_pnl}; }
+  }catch(e){ console.log('API недоступний, використовуємо локальні дані'); }
+}
+
+async function fetchSignals(){
+  try{
+    const r = await fetch(`${API_URL}/signals?limit=20`);
+    if(r.ok){ const d=await r.json(); SIGNALS=d.signals||[]; }
+  }catch(e){ console.log('Сигнали недоступні'); }
+}
+
+async function fetchReadiness(){
+  try{
+    const r = await fetch(`${API_URL}/readiness`);
+    if(r.ok) return await r.json();
+  }catch(e){}
+  return null;
+}
 
 // Dashboard
-function loadDashboard(){
+async function loadDashboard(){
+  await fetchStats();
   const s=STATS;
   document.getElementById('s-total').textContent=s.total;
   document.getElementById('s-wr').textContent=s.wr.toFixed(1)+'%';
@@ -441,7 +463,8 @@ function loadDashboard(){
 }
 
 // Signals
-function loadSignals(){
+async function loadSignals(){
+  await fetchSignals();
   const el=document.getElementById('sig-list');
   if(!SIGNALS.length){
     el.innerHTML=`<div class="empty"><div class="ico">🛸</div><div class="ttl">Сигналів поки немає</div><div class="sub">Система веде сканування.<br>Сигнали з'являться тут автоматично.</div></div>`;
@@ -584,7 +607,7 @@ function renderLegend(){
 }
 
 // Init
-loadDashboard();
+(async()=>{ await fetchStats(); loadDashboard(); })();
 </script>
 </body>
 </html>
