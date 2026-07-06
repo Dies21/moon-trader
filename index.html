@@ -674,31 +674,61 @@ async function drawAnalysis(){
     });
   }
 
-  // ── Прогноз (той самий незалежно від режиму графіка) ────────────────────
-  const rsi=30+Math.random()*50,pu=.3+Math.random()*.5;
-  const mv=(1.5+Math.random()*3).toFixed(1),bd=(.5+Math.random()*1.5).toFixed(1);
-  let fc,fcl,fclr,fmv;
-  if(pu>=.6){fc='up';fcl='🟢 Очікується РІСТ';fclr='var(--green)';fmv='+'+mv+'%';}
-  else if(pu<=.4){fc='down';fcl='🔴 Очікується ПАДІННЯ';fclr='var(--red)';fmv='-'+mv+'%';}
-  else{fc='neutral';fcl='⚪ Ринок невизначений';fclr='var(--accent)';fmv='±'+mv+'%';}
+  // ── Прогноз — РЕАЛЬНІ дані від навченої моделі ──────────────────────────
+  const pred = await fetchPrediction(selCoin);
+
+  let fc, fcl, fclr, fmv, bd, rsiVal, macdUp, trendUp, volRatio, bbPos;
+
+  if(pred && pred.status === 'ok'){
+    // Реальний прогноз від моделі
+    const move = pred.predicted_move;
+    bd = pred.band.toFixed(1);
+    rsiVal   = pred.rsi;
+    macdUp   = pred.macd_hist > 0;
+    trendUp  = pred.trend_up;
+    volRatio = pred.vol_ratio;
+    bbPos    = pred.bb_pos;
+
+    if(move >= 1.0){ fc='up'; fcl='🟢 Очікується РІСТ'; fclr='var(--green)'; fmv='+'+move.toFixed(1)+'%'; }
+    else if(move <= -1.0){ fc='down'; fcl='🔴 Очікується ПАДІННЯ'; fclr='var(--red)'; fmv=move.toFixed(1)+'%'; }
+    else { fc='neutral'; fcl='⚪ Ринок невизначений'; fclr='var(--accent)'; fmv='±'+Math.abs(move).toFixed(1)+'%'; }
+  } else {
+    // Модель ще не навчена або дані недоступні — показуємо чесне повідомлення
+    fc='neutral'; fcl='⏳ Модель ще навчається'; fclr='var(--muted)'; fmv='—'; bd='—';
+    rsiVal=50; macdUp=null; trendUp=null; volRatio=1; bbPos=0.5;
+  }
+
+  const predSourceNote = (pred && pred.status === 'ok')
+    ? '<span style="color:var(--green)">✅ реальний прогноз моделі</span>'
+    : '<span style="color:var(--yellow)">⏳ '+(pred ? pred.message : 'API недоступний')+'</span>';
 
   document.getElementById('fc-wrap').innerHTML=`
     <div class="fc-box ${fc}">
       <div class="fc-dir" style="color:${fclr}">${fcl}</div>
       <div class="fc-row"><span>Прогноз руху</span><span style="color:${fclr}">${fmv}</span></div>
-      <div class="fc-row"><span>Діапазон впевненості</span><span>±${bd}% ${parseFloat(bd)<1.5?'✅':'⚠️'}</span></div>
+      <div class="fc-row"><span>Діапазон впевненості</span><span>${bd==='—'?'—':'±'+bd+'% '+(parseFloat(bd)<1.5?'✅':'⚠️')}</span></div>
       <div class="fc-row"><span>Зміна за період</span><span style="color:${up?'var(--green)':'var(--red)'}">${up?'+':''}${chg.toFixed(2)}%</span></div>
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:10px">${predSourceNote}</div>
     </div>`;
 
-  const inds=[
-    {lbl:`RSI ${rsi.toFixed(0)}`,t:rsi<35?'bull':rsi>65?'bear':'neut'},
-    {lbl:`MACD ${Math.random()>.5?'↑':'↓'}`,t:Math.random()>.5?'bull':'bear'},
-    {lbl:`EMA ${Math.random()>.5?'бичачий':'ведмежий'}`,t:Math.random()>.5?'bull':'bear'},
-    {lbl:`BB ${Math.random()>.5?'верх':'низ'}`,t:Math.random()>.5?'bear':'bull'},
-    {lbl:`Vol ${Math.random()>.5?'🔥 сплеск':'норм'}`,t:Math.random()>.5?'bull':'neut'},
-  ];
+  const inds = (pred && pred.status === 'ok') ? [
+    {lbl:`RSI ${rsiVal.toFixed(0)}`, t: rsiVal<35?'bull':rsiVal>65?'bear':'neut'},
+    {lbl:`MACD ${macdUp?'↑':'↓'}`, t: macdUp?'bull':'bear'},
+    {lbl:`EMA ${trendUp?'бичачий':'ведмежий'}`, t: trendUp?'bull':'bear'},
+    {lbl:`BB ${bbPos>0.7?'верх':bbPos<0.3?'низ':'центр'}`, t: bbPos>0.7?'bear':bbPos<0.3?'bull':'neut'},
+    {lbl:`Vol ${volRatio>=2?'🔥 сплеск':'норм'}`, t: volRatio>=2?'bull':'neut'},
+  ] : [{lbl:'Дані з\'являться після навчання моделі', t:'neut'}];
+
   document.getElementById('ind-card').style.display='block';
   document.getElementById('ind-list').innerHTML=inds.map(i=>`<span class="ind ${i.t}">${i.lbl}</span>`).join('');
+}
+
+async function fetchPrediction(coin){
+  try{
+    const r = await fetch(`${API_URL}/predict?symbol=${coin}`);
+    if(r.ok) return await r.json();
+  }catch(e){ console.log('Predict API недоступний'); }
+  return null;
 }
 
 // Legend
