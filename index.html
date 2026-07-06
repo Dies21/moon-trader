@@ -6,6 +6,7 @@
 <title>Moon Trader</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.1/dist/chartjs-chart-financial.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
@@ -229,6 +230,30 @@ body::before {
 /* Chart */
 .chart-wrap{position:relative;height:160px;margin-bottom:10px}
 
+/* Chart mode toggle */
+.chart-mode-row{display:flex;gap:6px;margin-bottom:10px}
+.mode-btn {
+  flex:1;padding:7px 8px;border-radius:8px;
+  border:1px solid var(--border);background:var(--bg3);
+  color:var(--muted);font-size:11px;font-weight:600;cursor:pointer;
+  transition:all .2s;font-family:'Space Grotesk',sans-serif;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+}
+.mode-btn.active{background:rgba(79,143,255,.15);border-color:var(--accent);color:var(--accent)}
+
+/* OHLC info bar shown in candlestick mode */
+.ohlc-bar {
+  display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
+  margin-bottom:10px;
+}
+.ohlc-item{background:var(--bg3);border-radius:8px;padding:6px;text-align:center}
+.ohlc-lbl{font-size:9px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:2px}
+.ohlc-val{font-size:11px;font-weight:700;font-family:'Space Mono',monospace}
+.ohlc-val.o{color:var(--accent)}
+.ohlc-val.h{color:var(--green)}
+.ohlc-val.l{color:var(--red)}
+.ohlc-val.c{color:var(--yellow)}
+
 /* Forecast */
 .fc-box{border-radius:12px;padding:12px;margin-bottom:10px}
 .fc-box.up{background:rgba(16,217,138,.07);border:1px solid rgba(16,217,138,.2)}
@@ -355,6 +380,16 @@ body::before {
   <div class="period-grid" id="per-sel"></div>
   <div class="card">
     <div class="card-title" id="chart-lbl">📈 Графік</div>
+    <div class="chart-mode-row">
+      <button class="mode-btn active" id="mode-line" onclick="setChartMode('line')">📈 Лінія</button>
+      <button class="mode-btn" id="mode-candle" onclick="setChartMode('candle')">🕯️ Свічки</button>
+    </div>
+    <div class="ohlc-bar" id="ohlc-bar" style="display:none">
+      <div class="ohlc-item"><div class="ohlc-lbl">OPEN</div><div class="ohlc-val o" id="ohlc-o">—</div></div>
+      <div class="ohlc-item"><div class="ohlc-lbl">HIGH</div><div class="ohlc-val h" id="ohlc-h">—</div></div>
+      <div class="ohlc-item"><div class="ohlc-lbl">LOW</div><div class="ohlc-val l" id="ohlc-l">—</div></div>
+      <div class="ohlc-item"><div class="ohlc-lbl">CLOSE</div><div class="ohlc-val c" id="ohlc-c">—</div></div>
+    </div>
     <div class="chart-wrap"><canvas id="chart"></canvas></div>
   </div>
   <div id="fc-wrap"></div>
@@ -496,7 +531,10 @@ async function loadSignals(){
 }
 
 // Analysis
-let selCoin='AVAX',selPer='24г',chart=null;
+let selCoin='AVAX', selPer='24г', chartMode='line', chart=null;
+
+// Мапа періодів на кількість свічок (TIMEFRAME бота = 4h)
+const PERIOD_CANDLES = {'1г':1,'3г':1,'6г':2,'12г':3,'24г':6,'3д':18,'7д':42,'30д':180,'90д':540};
 
 function initAnalysis(){
   document.getElementById('coin-sel').innerHTML=COINS.map(c=>`
@@ -509,29 +547,134 @@ function initAnalysis(){
 function pickCoin(c,el){selCoin=c;document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));el.classList.add('active');drawAnalysis();}
 function pickPer(p,el){selPer=p;document.querySelectorAll('.p-btn').forEach(x=>x.classList.remove('active'));el.classList.add('active');drawAnalysis();}
 
-function drawAnalysis(){
-  document.getElementById('chart-lbl').textContent=`📈 ${selCoin}/USDT · ${selPer}`;
-  const n={1:1,3:3,6:6,12:12,24:24,'3':18,'7':42,'30':180,'90':540}[selPer.replace('г','').replace('д','')] || 24;
-  const pts=[];let p=20+Math.random()*80;
-  for(let i=0;i<Math.min(n,60);i++){p+=(Math.random()-.47)*p*.015;pts.push(+p.toFixed(4));}
-  const chg=(pts[pts.length-1]-pts[0])/pts[0]*100;
-  const up=chg>=0;
+function setChartMode(mode){
+  chartMode=mode;
+  document.getElementById('mode-line').classList.toggle('active', mode==='line');
+  document.getElementById('mode-candle').classList.toggle('active', mode==='candle');
+  document.getElementById('ohlc-bar').style.display = mode==='candle' ? 'grid' : 'none';
+  drawAnalysis();
+}
 
-  if(chart)chart.destroy();
-  const ctx=document.getElementById('chart').getContext('2d');
-  const gr=ctx.createLinearGradient(0,0,0,160);
-  gr.addColorStop(0,up?'rgba(16,217,138,.25)':'rgba(255,69,96,.25)');
-  gr.addColorStop(1,'rgba(8,11,20,0)');
-  chart=new Chart(ctx,{
-    type:'line',
-    data:{labels:pts.map(()=>''),datasets:[{data:pts,borderColor:up?'#10d98a':'#ff4560',backgroundColor:gr,borderWidth:2,fill:true,tension:.4,pointRadius:0}]},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{enabled:false}},
-      scales:{x:{display:false},y:{display:true,grid:{color:'rgba(79,143,255,.07)'},ticks:{color:'#64748b',font:{size:9,family:'Space Mono'},maxTicksLimit:4},border:{display:false}}},
-      animation:{duration:500}
+async function fetchCandles(coin, limit){
+  try{
+    const r = await fetch(`${API_URL}/candles?symbol=${coin}&limit=${limit}`);
+    if(r.ok){
+      const d = await r.json();
+      if(d.candles && d.candles.length) return d.candles;
     }
-  });
+  }catch(e){ console.log('Candles API недоступний, генеруємо тестові дані'); }
+  return null;
+}
 
+function generateMockCandles(n){
+  const candles=[]; let price=20+Math.random()*80;
+  const now=Date.now();
+  for(let i=0;i<n;i++){
+    const open=price;
+    const vol=price*0.02;
+    const close=open+(Math.random()-0.48)*vol*2;
+    const high=Math.max(open,close)+Math.random()*vol*0.5;
+    const low =Math.min(open,close)-Math.random()*vol*0.5;
+    candles.push({ts: now-(n-i)*14400000, open:+open.toFixed(4), high:+high.toFixed(4), low:+low.toFixed(4), close:+close.toFixed(4), volume:0});
+    price=close;
+  }
+  return candles;
+}
+
+async function drawAnalysis(){
+  document.getElementById('chart-lbl').textContent=`📈 ${selCoin}/USDT · ${selPer}`;
+
+  const n = PERIOD_CANDLES[selPer] || 6;
+  const fetchN = Math.max(n, 20); // мінімум 20 свічок для нормального вигляду графіка
+
+  let candles = await fetchCandles(selCoin, fetchN);
+  if(!candles || candles.length < 2){
+    candles = generateMockCandles(fetchN);
+  }
+  candles = candles.slice(-Math.max(n, 15)); // показуємо трохи більше для контексту
+
+  const closes = candles.map(c=>c.close);
+  const chg = ((closes[closes.length-1]-closes[0])/closes[0])*100;
+  const up = chg>=0;
+
+  if(chart) chart.destroy();
+  const ctx = document.getElementById('chart').getContext('2d');
+
+  if(chartMode==='candle'){
+    // ── Свічковий графік ──────────────────────────────────────────────────
+    const data = candles.map((c,i)=>({x:i, o:c.open, h:c.high, l:c.low, c:c.close}));
+
+    chart = new Chart(ctx, {
+      type: 'candlestick',
+      data: { datasets: [{
+        label: selCoin,
+        data: data,
+        color: { up: '#10d98a', down: '#ff4560', unchanged: '#64748b' },
+        borderColor: { up: '#10d98a', down: '#ff4560', unchanged: '#64748b' },
+      }]},
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          tooltip:{
+            enabled:true,
+            backgroundColor:'#111827',
+            borderColor:'#4f8fff',
+            borderWidth:1,
+            titleColor:'#e2e8f0',
+            bodyColor:'#e2e8f0',
+            titleFont:{family:'Space Mono',size:10},
+            bodyFont:{family:'Space Mono',size:10},
+            callbacks:{
+              label:(ctx)=>{
+                const d=ctx.raw;
+                return [`O: $${d.o.toFixed(4)}`,`H: $${d.h.toFixed(4)}`,`L: $${d.l.toFixed(4)}`,`C: $${d.c.toFixed(4)}`];
+              }
+            }
+          }
+        },
+        scales:{
+          x:{display:false, type:'linear'},
+          y:{display:true, grid:{color:'rgba(79,143,255,.07)'}, ticks:{color:'#64748b',font:{size:9,family:'Space Mono'},maxTicksLimit:4}, border:{display:false}}
+        },
+        animation:{duration:400},
+        onHover:(evt,elements)=>{
+          if(elements && elements.length){
+            const idx=elements[0].index;
+            const c=candles[idx];
+            document.getElementById('ohlc-o').textContent='$'+c.open.toFixed(4);
+            document.getElementById('ohlc-h').textContent='$'+c.high.toFixed(4);
+            document.getElementById('ohlc-l').textContent='$'+c.low.toFixed(4);
+            document.getElementById('ohlc-c').textContent='$'+c.close.toFixed(4);
+          }
+        }
+      }
+    });
+
+    // Показуємо останню свічку в OHLC панелі за замовчуванням
+    const last = candles[candles.length-1];
+    document.getElementById('ohlc-o').textContent='$'+last.open.toFixed(4);
+    document.getElementById('ohlc-h').textContent='$'+last.high.toFixed(4);
+    document.getElementById('ohlc-l').textContent='$'+last.low.toFixed(4);
+    document.getElementById('ohlc-c').textContent='$'+last.close.toFixed(4);
+
+  } else {
+    // ── Лінійний графік ───────────────────────────────────────────────────
+    const gr=ctx.createLinearGradient(0,0,0,160);
+    gr.addColorStop(0, up?'rgba(16,217,138,.25)':'rgba(255,69,96,.25)');
+    gr.addColorStop(1,'rgba(8,11,20,0)');
+    chart=new Chart(ctx,{
+      type:'line',
+      data:{labels:closes.map(()=>''),datasets:[{data:closes,borderColor:up?'#10d98a':'#ff4560',backgroundColor:gr,borderWidth:2,fill:true,tension:.4,pointRadius:0}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{enabled:false}},
+        scales:{x:{display:false},y:{display:true,grid:{color:'rgba(79,143,255,.07)'},ticks:{color:'#64748b',font:{size:9,family:'Space Mono'},maxTicksLimit:4},border:{display:false}}},
+        animation:{duration:500}
+      }
+    });
+  }
+
+  // ── Прогноз (той самий незалежно від режиму графіка) ────────────────────
   const rsi=30+Math.random()*50,pu=.3+Math.random()*.5;
   const mv=(1.5+Math.random()*3).toFixed(1),bd=(.5+Math.random()*1.5).toFixed(1);
   let fc,fcl,fclr,fmv;
