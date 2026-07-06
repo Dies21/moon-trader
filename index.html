@@ -219,7 +219,7 @@ body::before {
 .chip.active{background:rgba(79,143,255,.15);border-color:var(--accent);color:var(--accent);box-shadow:var(--glow)}
 
 /* Period grid */
-.period-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:12px}
+.period-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:12px}
 .p-btn {
   padding:7px 4px;border-radius:8px;border:1px solid var(--border);
   background:var(--bg3);color:var(--muted);font-size:10px;font-weight:600;
@@ -391,6 +391,7 @@ body::before {
       <div class="ohlc-item"><div class="ohlc-lbl">CLOSE</div><div class="ohlc-val c" id="ohlc-c">—</div></div>
     </div>
     <div class="chart-wrap"><canvas id="chart"></canvas></div>
+    <div id="res-note" style="display:none;font-size:10px;color:var(--muted);margin-top:6px;text-align:center;font-family:'Space Mono',monospace"></div>
   </div>
   <div id="fc-wrap"></div>
   <div class="card" id="ind-card" style="display:none">
@@ -435,7 +436,7 @@ function nav(page, btn){
 // API_URL передається через Telegram WebApp initData або беремо з параметрів
 const API_URL = new URLSearchParams(window.location.search).get('api') || 'https://finless-rhona-unpliant.ngrok-free.dev';
 const COINS   = ['LINK','DOT','AVAX','ATOM','UNI','LTC','BCH','ETC','NEAR','FIL','ECR'];
-const PERIODS = ['1г','3г','6г','12г','24г','3д','7д','30д','90д'];
+const PERIODS = ['6г','12г','24г','3д','7д','30д','90д'];
 
 // Глобальні дані
 let STATS   = {total:0,wins:0,losses:0,pending:0,wr:0,pnl:0};
@@ -537,7 +538,7 @@ async function loadSignals(){
 let selCoin='AVAX', selPer='24г', chartMode='line', chart=null;
 
 // Мапа періодів на кількість свічок (TIMEFRAME бота = 4h)
-const PERIOD_CANDLES = {'1г':1,'3г':1,'6г':2,'12г':3,'24г':6,'3д':18,'7д':42,'30д':180,'90д':540};
+const PERIOD_CANDLES = {'6г':2,'12г':3,'24г':6,'3д':18,'7д':42,'30д':180,'90д':540};
 
 function initAnalysis(){
   document.getElementById('coin-sel').innerHTML=COINS.map(c=>`
@@ -588,13 +589,25 @@ async function drawAnalysis(){
   document.getElementById('chart-lbl').textContent=`📈 ${selCoin}/USDT · ${selPer}`;
 
   const n = PERIOD_CANDLES[selPer] || 6;
-  const fetchN = Math.max(n, 20); // мінімум 20 свічок для нормального вигляду графіка
+  // Показуємо саме стільки свічок скільки відповідає періоду
+  // (мінімум 2 щоб було що малювати лінією/свічками)
+  const displayN = Math.max(n, 2);
 
-  let candles = await fetchCandles(selCoin, fetchN);
+  let candles = await fetchCandles(selCoin, displayN);
   if(!candles || candles.length < 2){
-    candles = generateMockCandles(fetchN);
+    candles = generateMockCandles(displayN);
   }
-  candles = candles.slice(-Math.max(n, 15)); // показуємо трохи більше для контексту
+  candles = candles.slice(-displayN);
+
+  // Попередження — дані мають крок 4 години, тому короткі періоди
+  // фізично не можуть показати більше деталей ніж є в базі
+  const resNote = document.getElementById('res-note');
+  if(n < 6){
+    resNote.style.display = 'block';
+    resNote.textContent = `⏱ Дані з кроком 4 години. Період "${selPer}" показує ${n} ${n===1?'останню свічку':'останні свічки'}.`;
+  } else {
+    resNote.style.display = 'none';
+  }
 
   const closes = candles.map(c=>c.close);
   const chg = ((closes[closes.length-1]-closes[0])/closes[0])*100;
